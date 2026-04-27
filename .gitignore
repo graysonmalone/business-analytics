@@ -1,0 +1,24 @@
+# Dependencies
+frontend/node_modules/
+
+# Build output
+frontend/dist/
+
+# Environment variables
+.env
+.env.local
+backend/.env
+
+# Go binaries
+backend/business-analytics
+backend/*.exe
+
+# macOS
+.DS_Store
+
+# IDE
+.cursor/
+.vscode/
+
+# Logs
+*.log
