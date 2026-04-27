@@ -1,0 +1,39 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy to Lightsail
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: 3.23.45.79
+          username: ubuntu
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            set -e
+            cd /var/www/business-analytics
+
+            echo "Pulling latest code..."
+            git pull origin main
+
+            echo "Building backend..."
+            cd backend
+            go build -o bizanalytics .
+            cd ..
+
+            echo "Building frontend..."
+            cd frontend
+            npm install --silent
+            npm run build
+            cd ..
+
+            echo "Restarting service..."
+            sudo systemctl restart bizanalytics
+
+            echo "Deploy complete."
