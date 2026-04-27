@@ -1,6 +1,10 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import { getDashboard } from '@/api/dashboard'
+import api from '@/lib/axios'
 import { CardSkeleton, ChartSkeleton } from '@/components/Skeleton'
+import { Button } from '@/components/ui/button'
+import { Sparkles } from 'lucide-react'
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis,
   CartesianGrid, Tooltip, ResponsiveContainer, Legend,
@@ -25,9 +29,19 @@ const tooltipStyle = {
 }
 
 export default function Dashboard() {
+  const qc = useQueryClient()
   const { data, isLoading, isError } = useQuery({
     queryKey: ['dashboard'],
     queryFn: getDashboard,
+  })
+
+  const seedMut = useMutation({
+    mutationFn: () => api.post('/seed').then(r => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries()
+      toast.success('Demo data loaded!')
+    },
+    onError: (err) => toast.error(err.response?.data?.error || 'Could not load demo data'),
   })
 
   if (isLoading) {
@@ -58,9 +72,22 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6 max-w-6xl">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-100">Dashboard</h1>
-        <p className="text-sm text-gray-400 mt-0.5">Business overview at a glance</p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-100">Dashboard</h1>
+          <p className="text-sm text-gray-400 mt-0.5">Business overview at a glance</p>
+        </div>
+        {data && data.total_products === 0 && (
+          <Button
+            onClick={() => seedMut.mutate()}
+            disabled={seedMut.isPending}
+            variant="outline"
+            className="border-purple-500/40 text-purple-400 hover:bg-purple-500/10 hover:text-purple-300 gap-2 shrink-0"
+          >
+            <Sparkles size={15} />
+            {seedMut.isPending ? 'Loading…' : 'Load demo data'}
+          </Button>
+        )}
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

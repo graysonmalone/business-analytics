@@ -2,13 +2,14 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { getTransactions, createTransaction, updateTransaction, deleteTransaction } from '@/api/transactions'
+import { exportCSV } from '@/lib/csv'
 import { TableSkeleton, CardSkeleton, ChartSkeleton } from '@/components/Skeleton'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
-import { Plus, Pencil, Trash2 } from 'lucide-react'
+import { Plus, Pencil, Trash2, Download } from 'lucide-react'
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from 'recharts'
@@ -90,9 +91,20 @@ export default function Finance() {
           <h1 className="text-2xl font-bold text-gray-100">Finance</h1>
           <p className="text-sm text-gray-400 mt-0.5">Income &amp; expense tracker</p>
         </div>
-        <Button onClick={openAdd} className="bg-purple-600 hover:bg-purple-700 text-white gap-2">
-          <Plus size={16} /> Add Transaction
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={() => exportCSV('transactions.csv', transactions, [
+            { label: 'Date', value: r => r.date },
+            { label: 'Type', value: r => r.type },
+            { label: 'Category', value: r => r.category },
+            { label: 'Description', value: r => r.description },
+            { label: 'Amount', value: r => r.amount },
+          ])} variant="outline" className="border-gray-700 text-gray-300 hover:bg-gray-800 gap-2">
+            <Download size={15} /> Export
+          </Button>
+          <Button onClick={openAdd} className="bg-purple-600 hover:bg-purple-700 text-white gap-2">
+            <Plus size={16} /> Add Transaction
+          </Button>
+        </div>
       </div>
 
       {isLoading ? (

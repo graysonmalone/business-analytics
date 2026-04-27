@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { getInventory, createProduct, updateProduct, deleteProduct } from '@/api/inventory'
+import { exportCSV } from '@/lib/csv'
 import { TableSkeleton } from '@/components/Skeleton'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -10,7 +11,7 @@ import { Badge } from '@/components/ui/badge'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog'
-import { Plus, Pencil, Trash2, AlertTriangle } from 'lucide-react'
+import { Plus, Pencil, Trash2, AlertTriangle, Download } from 'lucide-react'
 
 const empty = { name: '', category: '', quantity: 0, unit_price: 0, reorder_level: 10 }
 const fmt = (n) => '$' + Number(n || 0).toFixed(2)
@@ -75,9 +76,22 @@ export default function Inventory() {
           <h1 className="text-2xl font-bold text-gray-100">Inventory</h1>
           <p className="text-sm text-gray-400 mt-0.5">{products.length} products</p>
         </div>
-        <Button onClick={openAdd} className="bg-purple-600 hover:bg-purple-700 text-white gap-2">
-          <Plus size={16} /> Add Product
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={() => exportCSV('inventory.csv', products, [
+            { label: 'Name', value: r => r.name },
+            { label: 'Category', value: r => r.category },
+            { label: 'Quantity', value: r => r.quantity },
+            { label: 'Unit Price', value: r => r.unit_price },
+            { label: 'Value', value: r => (r.quantity * r.unit_price).toFixed(2) },
+            { label: 'Reorder Level', value: r => r.reorder_level },
+            { label: 'Status', value: r => r.quantity <= r.reorder_level ? 'Low Stock' : 'In Stock' },
+          ])} variant="outline" className="border-gray-700 text-gray-300 hover:bg-gray-800 gap-2">
+            <Download size={15} /> Export
+          </Button>
+          <Button onClick={openAdd} className="bg-purple-600 hover:bg-purple-700 text-white gap-2">
+            <Plus size={16} /> Add Product
+          </Button>
+        </div>
       </div>
 
       {lowStock.length > 0 && (

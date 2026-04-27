@@ -23,6 +23,7 @@ func Setup(db *sql.DB) http.Handler {
 	sal := &handlers.SalesHandler{DB: db}
 	dash := &handlers.DashboardHandler{DB: db}
 	prof := &handlers.ProfileHandler{DB: db}
+	seed := &handlers.SeedHandler{DB: db}
 
 	// Public
 	r.Post("/api/auth/register", auth.Register)
@@ -34,6 +35,7 @@ func Setup(db *sql.DB) http.Handler {
 
 		r.Get("/api/dashboard", dash.Get)
 		r.Get("/api/profile", prof.Get)
+		r.Post("/api/seed", seed.Seed)
 
 		r.Get("/api/inventory", inv.List)
 		r.Post("/api/inventory", inv.Create)
