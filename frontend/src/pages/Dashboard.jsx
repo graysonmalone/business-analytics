@@ -1,10 +1,11 @@
+import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { getDashboard } from '@/api/dashboard'
 import api from '@/lib/axios'
 import { CardSkeleton, ChartSkeleton } from '@/components/Skeleton'
 import { Button } from '@/components/ui/button'
-import { Sparkles } from 'lucide-react'
+import { Sparkles, Brain } from 'lucide-react'
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis,
   CartesianGrid, Tooltip, ResponsiveContainer, Legend,
@@ -30,9 +31,17 @@ const tooltipStyle = {
 
 export default function Dashboard() {
   const qc = useQueryClient()
+  const [insights, setInsights] = useState(null)
+
   const { data, isLoading, isError } = useQuery({
     queryKey: ['dashboard'],
     queryFn: getDashboard,
+  })
+
+  const insightsMut = useMutation({
+    mutationFn: () => api.post('/insights').then(r => r.data),
+    onSuccess: (d) => setInsights(d.insights),
+    onError: () => toast.error('Failed to generate insights'),
   })
 
   const seedMut = useMutation({
@@ -181,6 +190,44 @@ export default function Dashboard() {
               </div>
             ))}
           </div>
+        )}
+      </div>
+
+      <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <Brain size={16} className="text-purple-400" />
+            <h2 className="text-sm font-semibold text-gray-200">AI Business Insights</h2>
+          </div>
+          <Button
+            onClick={() => insightsMut.mutate()}
+            disabled={insightsMut.isPending}
+            size="sm"
+            className="bg-purple-600 hover:bg-purple-700 text-white gap-1.5 text-xs"
+          >
+            <Sparkles size={13} />
+            {insightsMut.isPending ? 'Analyzing…' : insights ? 'Regenerate' : 'Generate Insights'}
+          </Button>
+        </div>
+        {insightsMut.isPending ? (
+          <div className="space-y-2.5">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="h-4 bg-gray-800 rounded animate-pulse" style={{ width: `${75 + i * 5}%` }} />
+            ))}
+          </div>
+        ) : insights ? (
+          <ul className="space-y-2.5">
+            {insights.map((point, i) => (
+              <li key={i} className="flex items-start gap-2.5">
+                <span className="mt-1 w-1.5 h-1.5 rounded-full bg-purple-400 shrink-0" />
+                <p className="text-sm text-gray-300 leading-relaxed">{point}</p>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm text-gray-500 text-center py-6">
+            Click "Generate Insights" to get AI-powered analysis of your business data.
+          </p>
         )}
       </div>
     </div>

@@ -21,6 +21,7 @@ type Product struct {
 	Category     string    `json:"category"`
 	Quantity     int       `json:"quantity"`
 	UnitPrice    float64   `json:"unit_price"`
+	CostPrice    float64   `json:"cost_price"`
 	ReorderLevel int       `json:"reorder_level"`
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
@@ -29,7 +30,7 @@ type Product struct {
 func (h *InventoryHandler) List(w http.ResponseWriter, r *http.Request) {
 	userID := userIDFromCtx(r.Context())
 	rows, err := h.DB.Query(
-		`SELECT id, user_id, name, category, quantity, unit_price, reorder_level, created_at, updated_at
+		`SELECT id, user_id, name, category, quantity, unit_price, cost_price, reorder_level, created_at, updated_at
 		 FROM products WHERE user_id = ? ORDER BY created_at DESC`,
 		userID,
 	)
@@ -42,7 +43,7 @@ func (h *InventoryHandler) List(w http.ResponseWriter, r *http.Request) {
 	products := []Product{}
 	for rows.Next() {
 		var p Product
-		if err := rows.Scan(&p.ID, &p.UserID, &p.Name, &p.Category, &p.Quantity, &p.UnitPrice, &p.ReorderLevel, &p.CreatedAt, &p.UpdatedAt); err != nil {
+		if err := rows.Scan(&p.ID, &p.UserID, &p.Name, &p.Category, &p.Quantity, &p.UnitPrice, &p.CostPrice, &p.ReorderLevel, &p.CreatedAt, &p.UpdatedAt); err != nil {
 			continue
 		}
 		products = append(products, p)
@@ -66,8 +67,8 @@ func (h *InventoryHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	result, err := h.DB.Exec(
-		"INSERT INTO products (user_id, name, category, quantity, unit_price, reorder_level) VALUES (?, ?, ?, ?, ?, ?)",
-		userID, p.Name, p.Category, p.Quantity, p.UnitPrice, p.ReorderLevel,
+		"INSERT INTO products (user_id, name, category, quantity, unit_price, cost_price, reorder_level) VALUES (?, ?, ?, ?, ?, ?, ?)",
+		userID, p.Name, p.Category, p.Quantity, p.UnitPrice, p.CostPrice, p.ReorderLevel,
 	)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not create product")
@@ -89,10 +90,10 @@ func (h *InventoryHandler) Get(w http.ResponseWriter, r *http.Request) {
 
 	var p Product
 	err = h.DB.QueryRow(
-		`SELECT id, user_id, name, category, quantity, unit_price, reorder_level, created_at, updated_at
+		`SELECT id, user_id, name, category, quantity, unit_price, cost_price, reorder_level, created_at, updated_at
 		 FROM products WHERE id = ? AND user_id = ?`,
 		id, userID,
-	).Scan(&p.ID, &p.UserID, &p.Name, &p.Category, &p.Quantity, &p.UnitPrice, &p.ReorderLevel, &p.CreatedAt, &p.UpdatedAt)
+	).Scan(&p.ID, &p.UserID, &p.Name, &p.Category, &p.Quantity, &p.UnitPrice, &p.CostPrice, &p.ReorderLevel, &p.CreatedAt, &p.UpdatedAt)
 	if err == sql.ErrNoRows {
 		writeError(w, http.StatusNotFound, "product not found")
 		return
@@ -119,8 +120,8 @@ func (h *InventoryHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	result, err := h.DB.Exec(
-		"UPDATE products SET name=?, category=?, quantity=?, unit_price=?, reorder_level=? WHERE id=? AND user_id=?",
-		p.Name, p.Category, p.Quantity, p.UnitPrice, p.ReorderLevel, id, userID,
+		"UPDATE products SET name=?, category=?, quantity=?, unit_price=?, cost_price=?, reorder_level=? WHERE id=? AND user_id=?",
+		p.Name, p.Category, p.Quantity, p.UnitPrice, p.CostPrice, p.ReorderLevel, id, userID,
 	)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not update product")

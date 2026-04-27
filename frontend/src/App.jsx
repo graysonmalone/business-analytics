@@ -9,6 +9,7 @@ import Dashboard from '@/pages/Dashboard'
 import Inventory from '@/pages/Inventory'
 import Finance from '@/pages/Finance'
 import Sales from '@/pages/Sales'
+import Goals from '@/pages/Goals'
 import Profile from '@/pages/Profile'
 
 const queryClient = new QueryClient({
@@ -42,6 +43,7 @@ function AppRoutes() {
       <Route path="/inventory" element={<ProtectedRoute><AppLayout><Inventory /></AppLayout></ProtectedRoute>} />
       <Route path="/finance" element={<ProtectedRoute><AppLayout><Finance /></AppLayout></ProtectedRoute>} />
       <Route path="/sales" element={<ProtectedRoute><AppLayout><Sales /></AppLayout></ProtectedRoute>} />
+      <Route path="/goals" element={<ProtectedRoute><AppLayout><Goals /></AppLayout></ProtectedRoute>} />
       <Route path="/profile" element={<ProtectedRoute><AppLayout><Profile /></AppLayout></ProtectedRoute>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

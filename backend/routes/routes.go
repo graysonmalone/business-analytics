@@ -24,6 +24,8 @@ func Setup(db *sql.DB) http.Handler {
 	dash := &handlers.DashboardHandler{DB: db}
 	prof := &handlers.ProfileHandler{DB: db}
 	seed := &handlers.SeedHandler{DB: db}
+	goals := &handlers.GoalsHandler{DB: db}
+	insights := &handlers.InsightsHandler{DB: db}
 
 	// Public
 	r.Post("/api/auth/register", auth.Register)
@@ -36,6 +38,12 @@ func Setup(db *sql.DB) http.Handler {
 		r.Get("/api/dashboard", dash.Get)
 		r.Get("/api/profile", prof.Get)
 		r.Post("/api/seed", seed.Seed)
+		r.Post("/api/insights", insights.Generate)
+
+		r.Get("/api/goals", goals.List)
+		r.Post("/api/goals", goals.Create)
+		r.Put("/api/goals/{id}", goals.Update)
+		r.Delete("/api/goals/{id}", goals.Delete)
 
 		r.Get("/api/inventory", inv.List)
 		r.Post("/api/inventory", inv.Create)

@@ -102,6 +102,17 @@ func runMigrations(db *sql.DB) {
 			FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
 			FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE SET NULL
 		)`,
+		`ALTER TABLE products ADD COLUMN cost_price DECIMAL(10,2) NOT NULL DEFAULT 0.00 AFTER unit_price`,
+		`CREATE TABLE IF NOT EXISTS goals (
+			id INT AUTO_INCREMENT PRIMARY KEY,
+			user_id INT NOT NULL,
+			name VARCHAR(255) NOT NULL,
+			metric ENUM('revenue','expenses','profit','sales') NOT NULL,
+			target_amount DECIMAL(10,2) NOT NULL,
+			period ENUM('monthly','yearly') NOT NULL DEFAULT 'monthly',
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+		)`,
 	}
 
 	for _, stmt := range stmts {

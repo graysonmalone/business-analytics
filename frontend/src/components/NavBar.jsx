@@ -1,12 +1,13 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/context/AuthContext'
-import { LayoutDashboard, Package, DollarSign, TrendingUp, User, LogOut, BarChart2 } from 'lucide-react'
+import { LayoutDashboard, Package, DollarSign, TrendingUp, User, LogOut, BarChart2, Target } from 'lucide-react'
 
 const links = [
   { to: '/', icon: LayoutDashboard, label: 'Dashboard', exact: true },
   { to: '/inventory', icon: Package, label: 'Inventory' },
   { to: '/finance', icon: DollarSign, label: 'Finance' },
   { to: '/sales', icon: TrendingUp, label: 'Sales' },
+  { to: '/goals', icon: Target, label: 'Goals' },
   { to: '/profile', icon: User, label: 'Profile' },
 ]
 

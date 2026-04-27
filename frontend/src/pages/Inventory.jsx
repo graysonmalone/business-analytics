@@ -13,8 +13,12 @@ import {
 } from '@/components/ui/dialog'
 import { Plus, Pencil, Trash2, AlertTriangle, Download } from 'lucide-react'
 
-const empty = { name: '', category: '', quantity: 0, unit_price: 0, reorder_level: 10 }
+const empty = { name: '', category: '', quantity: 0, unit_price: 0, cost_price: 0, reorder_level: 10 }
 const fmt = (n) => '$' + Number(n || 0).toFixed(2)
+const margin = (unit, cost) => {
+  if (!unit || unit <= 0) return null
+  return (((unit - cost) / unit) * 100).toFixed(1)
+}
 
 export default function Inventory() {
   const qc = useQueryClient()
@@ -51,13 +55,13 @@ export default function Inventory() {
   const openAdd = () => { setEditing(null); setForm(empty); setOpen(true) }
   const openEdit = (p) => {
     setEditing(p)
-    setForm({ name: p.name, category: p.category, quantity: p.quantity, unit_price: p.unit_price, reorder_level: p.reorder_level })
+    setForm({ name: p.name, category: p.category, quantity: p.quantity, unit_price: p.unit_price, cost_price: p.cost_price ?? 0, reorder_level: p.reorder_level })
     setOpen(true)
   }
 
   const handleSubmit = (e) => {
     e.preventDefault()
-    const payload = { ...form, quantity: Number(form.quantity), unit_price: Number(form.unit_price), reorder_level: Number(form.reorder_level) }
+    const payload = { ...form, quantity: Number(form.quantity), unit_price: Number(form.unit_price), cost_price: Number(form.cost_price), reorder_level: Number(form.reorder_level) }
     editing ? updateMut.mutate({ id: editing.id, data: payload }) : createMut.mutate(payload)
   }
 
@@ -82,6 +86,8 @@ export default function Inventory() {
             { label: 'Category', value: r => r.category },
             { label: 'Quantity', value: r => r.quantity },
             { label: 'Unit Price', value: r => r.unit_price },
+            { label: 'Cost Price', value: r => r.cost_price ?? 0 },
+            { label: 'Margin %', value: r => margin(r.unit_price, r.cost_price) ?? '' },
             { label: 'Value', value: r => (r.quantity * r.unit_price).toFixed(2) },
             { label: 'Reorder Level', value: r => r.reorder_level },
             { label: 'Status', value: r => r.quantity <= r.reorder_level ? 'Low Stock' : 'In Stock' },
@@ -131,6 +137,7 @@ export default function Inventory() {
                   <th className="text-left px-4 py-3 font-medium">Category</th>
                   <th className="text-right px-4 py-3 font-medium">Quantity</th>
                   <th className="text-right px-4 py-3 font-medium">Unit Price</th>
+                  <th className="text-right px-4 py-3 font-medium">Margin</th>
                   <th className="text-right px-4 py-3 font-medium">Value</th>
                   <th className="text-center px-4 py-3 font-medium">Status</th>
                   <th className="text-right px-4 py-3 font-medium">Actions</th>
@@ -147,6 +154,15 @@ export default function Inventory() {
                         {p.quantity}
                       </td>
                       <td className="px-4 py-3 text-right text-gray-200 font-mono">{fmt(p.unit_price)}</td>
+                      <td className="px-4 py-3 text-right font-mono">
+                        {(() => {
+                          const m = margin(p.unit_price, p.cost_price)
+                          if (m === null) return <span className="text-gray-600">—</span>
+                          const pct = parseFloat(m)
+                          const cls = pct >= 30 ? 'text-green-400' : pct >= 10 ? 'text-yellow-400' : 'text-red-400'
+                          return <span className={cls}>{m}%</span>
+                        })()}
+                      </td>
                       <td className="px-4 py-3 text-right text-gray-300 font-mono">{fmt(p.quantity * p.unit_price)}</td>
                       <td className="px-4 py-3 text-center">
                         {isLow ? (
@@ -208,6 +224,26 @@ export default function Inventory() {
                 <Input id="p-price" type="number" min="0" step="0.01" value={form.unit_price}
                   onChange={e => setForm(f => ({ ...f, unit_price: e.target.value }))}
                   className="bg-gray-800 border-gray-700 text-gray-100" required />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="p-cost" className="text-gray-300 text-sm">Cost Price</Label>
+                <Input id="p-cost" type="number" min="0" step="0.01" value={form.cost_price}
+                  onChange={e => setForm(f => ({ ...f, cost_price: e.target.value }))}
+                  className="bg-gray-800 border-gray-700 text-gray-100" placeholder="0.00" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-gray-300 text-sm">Margin Preview</Label>
+                <div className="flex items-center h-9 px-3 bg-gray-800 border border-gray-700 rounded-md">
+                  {(() => {
+                    const m = margin(Number(form.unit_price), Number(form.cost_price))
+                    if (m === null) return <span className="text-gray-500 text-sm">—</span>
+                    const pct = parseFloat(m)
+                    const cls = pct >= 30 ? 'text-green-400' : pct >= 10 ? 'text-yellow-400' : 'text-red-400'
+                    return <span className={`text-sm font-mono ${cls}`}>{m}%</span>
+                  })()}
+                </div>
               </div>
             </div>
             <div className="space-y-1.5">
