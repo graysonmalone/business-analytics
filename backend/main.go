@@ -85,7 +85,7 @@ func runMigrations(db *sql.DB) {
 			type ENUM('income','expense') NOT NULL,
 			amount DECIMAL(10,2) NOT NULL,
 			category VARCHAR(255) DEFAULT '',
-			description TEXT DEFAULT '',
+			description TEXT,
 			date DATE NOT NULL,
 			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 			FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
