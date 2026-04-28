@@ -14,28 +14,33 @@ type InsightsHandler struct {
 	DB *sql.DB
 }
 
-type anthropicMessage struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
+type geminiRequest struct {
+	Contents []geminiContent `json:"contents"`
 }
 
-type anthropicRequest struct {
-	Model     string             `json:"model"`
-	MaxTokens int                `json:"max_tokens"`
-	Messages  []anthropicMessage `json:"messages"`
+type geminiContent struct {
+	Parts []geminiPart `json:"parts"`
 }
 
-type anthropicResponse struct {
-	Content []struct {
-		Text string `json:"text"`
-	} `json:"content"`
+type geminiPart struct {
+	Text string `json:"text"`
+}
+
+type geminiResponse struct {
+	Candidates []struct {
+		Content struct {
+			Parts []struct {
+				Text string `json:"text"`
+			} `json:"parts"`
+		} `json:"content"`
+	} `json:"candidates"`
 	Error *struct {
 		Message string `json:"message"`
 	} `json:"error,omitempty"`
 }
 
 func (h *InsightsHandler) Generate(w http.ResponseWriter, r *http.Request) {
-	apiKey := getEnv("ANTHROPIC_API_KEY", "")
+	apiKey := getEnv("GEMINI_API_KEY", "")
 	if apiKey == "" {
 		writeError(w, http.StatusServiceUnavailable, "AI insights not configured")
 		return
@@ -118,15 +123,12 @@ Format your response as exactly 5 bullet points starting with •`,
 		topProductsStr, monthlyStr,
 	)
 
-	body, _ := json.Marshal(anthropicRequest{
-		Model:     "claude-haiku-4-5-20251001",
-		MaxTokens: 600,
-		Messages:  []anthropicMessage{{Role: "user", Content: prompt}},
+	reqBody, _ := json.Marshal(geminiRequest{
+		Contents: []geminiContent{{Parts: []geminiPart{{Text: prompt}}}},
 	})
 
-	req, _ := http.NewRequest("POST", "https://api.anthropic.com/v1/messages", bytes.NewReader(body))
-	req.Header.Set("x-api-key", apiKey)
-	req.Header.Set("anthropic-version", "2023-06-01")
+	url := "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + apiKey
+	req, _ := http.NewRequest("POST", url, bytes.NewReader(reqBody))
 	req.Header.Set("content-type", "application/json")
 
 	resp, err := http.DefaultClient.Do(req)
@@ -137,21 +139,21 @@ Format your response as exactly 5 bullet points starting with •`,
 	defer resp.Body.Close()
 
 	respBody, _ := io.ReadAll(resp.Body)
-	var anthropicResp anthropicResponse
-	if err := json.Unmarshal(respBody, &anthropicResp); err != nil {
-		writeError(w, http.StatusBadGateway, "could not parse AI response: "+string(respBody[:min(len(respBody), 200)]))
+	var geminiResp geminiResponse
+	if err := json.Unmarshal(respBody, &geminiResp); err != nil {
+		writeError(w, http.StatusBadGateway, "could not parse AI response")
 		return
 	}
-	if anthropicResp.Error != nil {
-		writeError(w, http.StatusBadGateway, "Anthropic error: "+anthropicResp.Error.Message)
+	if geminiResp.Error != nil {
+		writeError(w, http.StatusBadGateway, "AI error: "+geminiResp.Error.Message)
 		return
 	}
-	if len(anthropicResp.Content) == 0 {
-		writeError(w, http.StatusBadGateway, "empty response from AI (HTTP "+fmt.Sprint(resp.StatusCode)+"): "+string(respBody[:min(len(respBody), 300)]))
+	if len(geminiResp.Candidates) == 0 || len(geminiResp.Candidates[0].Content.Parts) == 0 {
+		writeError(w, http.StatusBadGateway, "empty response from AI")
 		return
 	}
 
-	raw := anthropicResp.Content[0].Text
+	raw := geminiResp.Candidates[0].Content.Parts[0].Text
 	var points []string
 	for _, line := range strings.Split(raw, "\n") {
 		line = strings.TrimSpace(line)
@@ -160,6 +162,7 @@ Format your response as exactly 5 bullet points starting with •`,
 		}
 		line = strings.TrimPrefix(line, "•")
 		line = strings.TrimPrefix(line, "-")
+		line = strings.TrimPrefix(line, "*")
 		line = strings.TrimSpace(line)
 		if line != "" {
 			points = append(points, line)
