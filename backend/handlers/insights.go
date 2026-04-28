@@ -14,33 +14,29 @@ type InsightsHandler struct {
 	DB *sql.DB
 }
 
-type geminiRequest struct {
-	Contents []geminiContent `json:"contents"`
+type groqRequest struct {
+	Model    string        `json:"model"`
+	Messages []groqMessage `json:"messages"`
 }
 
-type geminiContent struct {
-	Parts []geminiPart `json:"parts"`
+type groqMessage struct {
+	Role    string `json:"role"`
+	Content string `json:"content"`
 }
 
-type geminiPart struct {
-	Text string `json:"text"`
-}
-
-type geminiResponse struct {
-	Candidates []struct {
-		Content struct {
-			Parts []struct {
-				Text string `json:"text"`
-			} `json:"parts"`
-		} `json:"content"`
-	} `json:"candidates"`
+type groqResponse struct {
+	Choices []struct {
+		Message struct {
+			Content string `json:"content"`
+		} `json:"message"`
+	} `json:"choices"`
 	Error *struct {
 		Message string `json:"message"`
 	} `json:"error,omitempty"`
 }
 
 func (h *InsightsHandler) Generate(w http.ResponseWriter, r *http.Request) {
-	apiKey := getEnv("GEMINI_API_KEY", "")
+	apiKey := getEnv("GROQ_API_KEY", "")
 	if apiKey == "" {
 		writeError(w, http.StatusServiceUnavailable, "AI insights not configured")
 		return
@@ -123,12 +119,13 @@ Format your response as exactly 5 bullet points starting with •`,
 		topProductsStr, monthlyStr,
 	)
 
-	reqBody, _ := json.Marshal(geminiRequest{
-		Contents: []geminiContent{{Parts: []geminiPart{{Text: prompt}}}},
+	reqBody, _ := json.Marshal(groqRequest{
+		Model:    "llama-3.1-8b-instant",
+		Messages: []groqMessage{{Role: "user", Content: prompt}},
 	})
 
-	url := "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" + apiKey
-	req, _ := http.NewRequest("POST", url, bytes.NewReader(reqBody))
+	req, _ := http.NewRequest("POST", "https://api.groq.com/openai/v1/chat/completions", bytes.NewReader(reqBody))
+	req.Header.Set("Authorization", "Bearer "+apiKey)
 	req.Header.Set("content-type", "application/json")
 
 	resp, err := http.DefaultClient.Do(req)
@@ -139,21 +136,21 @@ Format your response as exactly 5 bullet points starting with •`,
 	defer resp.Body.Close()
 
 	respBody, _ := io.ReadAll(resp.Body)
-	var geminiResp geminiResponse
-	if err := json.Unmarshal(respBody, &geminiResp); err != nil {
+	var groqResp groqResponse
+	if err := json.Unmarshal(respBody, &groqResp); err != nil {
 		writeError(w, http.StatusBadGateway, "could not parse AI response")
 		return
 	}
-	if geminiResp.Error != nil {
-		writeError(w, http.StatusBadGateway, "AI error: "+geminiResp.Error.Message)
+	if groqResp.Error != nil {
+		writeError(w, http.StatusBadGateway, "AI error: "+groqResp.Error.Message)
 		return
 	}
-	if len(geminiResp.Candidates) == 0 || len(geminiResp.Candidates[0].Content.Parts) == 0 {
+	if len(groqResp.Choices) == 0 {
 		writeError(w, http.StatusBadGateway, "empty response from AI")
 		return
 	}
 
-	raw := geminiResp.Candidates[0].Content.Parts[0].Text
+	raw := groqResp.Choices[0].Message.Content
 	var points []string
 	for _, line := range strings.Split(raw, "\n") {
 		line = strings.TrimSpace(line)
