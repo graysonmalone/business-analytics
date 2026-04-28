@@ -138,12 +138,16 @@ Format your response as exactly 5 bullet points starting with •`,
 
 	respBody, _ := io.ReadAll(resp.Body)
 	var anthropicResp anthropicResponse
-	if err := json.Unmarshal(respBody, &anthropicResp); err != nil || len(anthropicResp.Content) == 0 {
-		writeError(w, http.StatusBadGateway, "invalid response from AI service")
+	if err := json.Unmarshal(respBody, &anthropicResp); err != nil {
+		writeError(w, http.StatusBadGateway, "could not parse AI response: "+string(respBody[:min(len(respBody), 200)]))
 		return
 	}
 	if anthropicResp.Error != nil {
-		writeError(w, http.StatusBadGateway, anthropicResp.Error.Message)
+		writeError(w, http.StatusBadGateway, "Anthropic error: "+anthropicResp.Error.Message)
+		return
+	}
+	if len(anthropicResp.Content) == 0 {
+		writeError(w, http.StatusBadGateway, "empty response from AI (HTTP "+fmt.Sprint(resp.StatusCode)+"): "+string(respBody[:min(len(respBody), 300)]))
 		return
 	}
 
