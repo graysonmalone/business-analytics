@@ -2,13 +2,14 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { getGoals, createGoal, updateGoal, deleteGoal } from '@/api/goals'
+import api from '@/lib/axios'
 import { CardSkeleton } from '@/components/Skeleton'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
-import { Plus, Pencil, Trash2, Target } from 'lucide-react'
+import { Plus, Pencil, Trash2, Target, Sparkles } from 'lucide-react'
 
 const empty = { name: '', metric: 'revenue', target_amount: '', period: 'monthly' }
 
@@ -78,6 +79,12 @@ export default function Goals() {
     onError: () => toast.error('Failed to delete goal'),
   })
 
+  const seedMut = useMutation({
+    mutationFn: () => api.post('/seed').then(r => r.data),
+    onSuccess: () => { invalidate(); toast.success('Sample goals loaded!') },
+    onError: () => toast.error('Could not load sample goals'),
+  })
+
   const openAdd = () => { setEditing(null); setForm(empty); setOpen(true) }
   const openEdit = (g) => {
     setEditing(g)
@@ -116,9 +123,15 @@ export default function Goals() {
           <Target size={40} className="text-gray-600 mx-auto mb-3" />
           <p className="text-gray-300 font-medium">No goals yet</p>
           <p className="text-gray-500 text-sm mt-1">Set a revenue, expense, or profit target to track your progress</p>
-          <Button onClick={openAdd} className="mt-4 bg-purple-600 hover:bg-purple-700 text-white gap-2">
-            <Plus size={15} /> Create your first goal
-          </Button>
+          <div className="flex items-center justify-center gap-3 mt-4">
+            <Button onClick={openAdd} className="bg-purple-600 hover:bg-purple-700 text-white gap-2">
+              <Plus size={15} /> Create your first goal
+            </Button>
+            <Button onClick={() => seedMut.mutate()} disabled={seedMut.isPending}
+              variant="outline" className="border-purple-500/40 text-purple-400 hover:bg-purple-500/10 gap-2">
+              <Sparkles size={15} /> {seedMut.isPending ? 'Loading…' : 'Load sample goals'}
+            </Button>
+          </div>
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

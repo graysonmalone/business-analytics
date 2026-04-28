@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 )
 
 type InsightsHandler struct {
@@ -146,5 +147,19 @@ Format your response as exactly 5 bullet points starting with •`,
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]string{"insights": anthropicResp.Content[0].Text})
+	raw := anthropicResp.Content[0].Text
+	var points []string
+	for _, line := range strings.Split(raw, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		line = strings.TrimPrefix(line, "•")
+		line = strings.TrimPrefix(line, "-")
+		line = strings.TrimSpace(line)
+		if line != "" {
+			points = append(points, line)
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]interface{}{"insights": points})
 }

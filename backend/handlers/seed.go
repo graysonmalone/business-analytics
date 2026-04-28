@@ -14,35 +14,50 @@ type SeedHandler struct {
 func (h *SeedHandler) Seed(w http.ResponseWriter, r *http.Request) {
 	userID := userIDFromCtx(r.Context())
 
-	var count int
-	h.DB.QueryRow("SELECT COUNT(*) FROM products WHERE user_id=?", userID).Scan(&count)
-	if count > 0 {
+	var productCount, goalCount int
+	h.DB.QueryRow("SELECT COUNT(*) FROM products WHERE user_id=?", userID).Scan(&productCount)
+	h.DB.QueryRow("SELECT COUNT(*) FROM goals WHERE user_id=?", userID).Scan(&goalCount)
+
+	if productCount > 0 && goalCount > 0 {
 		writeError(w, http.StatusConflict, "demo data already exists — clear your data first")
 		return
 	}
 
+	if productCount == 0 {
+		h.seedProducts(userID)
+	}
+
+	if goalCount == 0 {
+		h.seedGoals(userID)
+	}
+
+	writeJSON(w, http.StatusOK, map[string]string{"message": "demo data loaded"})
+}
+
+func (h *SeedHandler) seedProducts(userID int) {
 	products := []struct {
-		name     string
-		category string
-		qty      int
-		price    float64
-		reorder  int
+		name      string
+		category  string
+		qty       int
+		price     float64
+		costPrice float64
+		reorder   int
 	}{
-		{"Wireless Headphones", "Electronics", 45, 89.99, 10},
-		{"Mechanical Keyboard", "Electronics", 8, 129.99, 10},
-		{"Desk Lamp", "Office", 62, 34.99, 15},
-		{"Notebook (Pack of 3)", "Stationery", 120, 12.99, 25},
-		{"Ergonomic Mouse", "Electronics", 33, 59.99, 10},
-		{"USB-C Hub", "Electronics", 5, 49.99, 8},
-		{"Standing Desk Mat", "Office", 28, 44.99, 10},
-		{"Blue Light Glasses", "Accessories", 19, 24.99, 10},
+		{"Wireless Headphones", "Electronics", 45, 89.99, 42.00, 10},
+		{"Mechanical Keyboard", "Electronics", 8, 129.99, 68.00, 10},
+		{"Desk Lamp", "Office", 62, 34.99, 14.50, 15},
+		{"Notebook (Pack of 3)", "Stationery", 120, 12.99, 4.80, 25},
+		{"Ergonomic Mouse", "Electronics", 33, 59.99, 28.00, 10},
+		{"USB-C Hub", "Electronics", 5, 49.99, 22.00, 8},
+		{"Standing Desk Mat", "Office", 28, 44.99, 19.50, 10},
+		{"Blue Light Glasses", "Accessories", 19, 24.99, 8.75, 10},
 	}
 
 	productIDs := []int{}
 	for _, p := range products {
 		res, err := h.DB.Exec(
-			"INSERT INTO products (user_id, name, category, quantity, unit_price, reorder_level) VALUES (?,?,?,?,?,?)",
-			userID, p.name, p.category, p.qty, p.price, p.reorder,
+			"INSERT INTO products (user_id, name, category, quantity, unit_price, cost_price, reorder_level) VALUES (?,?,?,?,?,?,?)",
+			userID, p.name, p.category, p.qty, p.price, p.costPrice, p.reorder,
 		)
 		if err == nil {
 			id, _ := res.LastInsertId()
@@ -51,11 +66,11 @@ func (h *SeedHandler) Seed(w http.ResponseWriter, r *http.Request) {
 	}
 
 	txns := []struct {
-		typ      string
-		amount   float64
-		category string
-		desc     string
-		daysAgo  int
+		typ     string
+		amount  float64
+		cat     string
+		desc    string
+		daysAgo int
 	}{
 		{"income", 4250.00, "Product Sales", "Online store revenue - Week 1", 175},
 		{"expense", 1200.00, "Inventory", "Restocked headphones and keyboards", 170},
@@ -91,17 +106,17 @@ func (h *SeedHandler) Seed(w http.ResponseWriter, r *http.Request) {
 		date := now.AddDate(0, 0, -t.daysAgo).Format("2006-01-02")
 		h.DB.Exec(
 			"INSERT INTO transactions (user_id, type, amount, category, description, date) VALUES (?,?,?,?,?,?)",
-			userID, t.typ, t.amount, t.category, t.desc, date,
+			userID, t.typ, t.amount, t.cat, t.desc, date,
 		)
 	}
 
 	if len(productIDs) > 0 {
-		r := rand.New(rand.NewSource(42))
+		rng := rand.New(rand.NewSource(42))
 		for i := 0; i < 40; i++ {
-			pid := productIDs[r.Intn(len(productIDs))]
-			qty := r.Intn(8) + 1
-			price := products[r.Intn(len(products))].price
-			daysAgo := r.Intn(150)
+			pid := productIDs[rng.Intn(len(productIDs))]
+			qty := rng.Intn(8) + 1
+			price := products[rng.Intn(len(products))].price
+			daysAgo := rng.Intn(150)
 			date := now.AddDate(0, 0, -daysAgo).Format("2006-01-02")
 			total := float64(qty) * price
 			h.DB.Exec(
@@ -110,6 +125,26 @@ func (h *SeedHandler) Seed(w http.ResponseWriter, r *http.Request) {
 			)
 		}
 	}
+}
 
-	writeJSON(w, http.StatusOK, map[string]string{"message": "demo data loaded"})
+func (h *SeedHandler) seedGoals(userID int) {
+	goals := []struct {
+		name   string
+		metric string
+		target float64
+		period string
+	}{
+		{"Hit $15k monthly revenue", "revenue", 15000, "monthly"},
+		{"Keep monthly expenses under $5k", "expenses", 5000, "monthly"},
+		{"Reach $100k annual revenue", "revenue", 100000, "yearly"},
+		{"Achieve $3k monthly profit", "profit", 3000, "monthly"},
+		{"Close 50 sales this month", "sales", 50, "monthly"},
+	}
+
+	for _, g := range goals {
+		h.DB.Exec(
+			"INSERT INTO goals (user_id, name, metric, target_amount, period) VALUES (?,?,?,?,?)",
+			userID, g.name, g.metric, g.target, g.period,
+		)
+	}
 }
