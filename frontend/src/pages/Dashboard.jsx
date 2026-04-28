@@ -38,10 +38,16 @@ export default function Dashboard() {
     queryFn: getDashboard,
   })
 
+  const [insightError, setInsightError] = useState(null)
+
   const insightsMut = useMutation({
     mutationFn: () => api.post('/insights').then(r => r.data),
-    onSuccess: (d) => setInsights(d.insights),
-    onError: () => toast.error('Failed to generate insights'),
+    onSuccess: (d) => { setInsights(d.insights); setInsightError(null) },
+    onError: (err) => {
+      const msg = err.response?.data?.error || 'Failed to reach AI service'
+      setInsightError(msg)
+      toast.error(msg)
+    },
   })
 
   const seedMut = useMutation({
@@ -215,6 +221,8 @@ export default function Dashboard() {
               <div key={i} className="h-4 bg-gray-800 rounded animate-pulse" style={{ width: `${75 + i * 5}%` }} />
             ))}
           </div>
+        ) : insightError ? (
+          <p className="text-sm text-red-400 text-center py-6">{insightError}</p>
         ) : insights ? (
           <ul className="space-y-2.5">
             {insights.map((point, i) => (
