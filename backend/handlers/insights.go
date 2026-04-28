@@ -127,7 +127,7 @@ Format your response as exactly 5 bullet points starting with •`,
 		Contents: []geminiContent{{Parts: []geminiPart{{Text: prompt}}}},
 	})
 
-	url := "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + apiKey
+	url := "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=" + apiKey
 	req, _ := http.NewRequest("POST", url, bytes.NewReader(reqBody))
 	req.Header.Set("content-type", "application/json")
 
