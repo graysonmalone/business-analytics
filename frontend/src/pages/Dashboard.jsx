@@ -7,7 +7,7 @@ import { CardSkeleton, ChartSkeleton } from '@/components/Skeleton'
 import { Button } from '@/components/ui/button'
 import { Sparkles, Brain } from 'lucide-react'
 import {
-  LineChart, Line, BarChart, Bar, XAxis, YAxis,
+  LineChart, Line, AreaChart, Area, BarChart, Bar, XAxis, YAxis,
   CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from 'recharts'
 
@@ -167,6 +167,36 @@ export default function Dashboard() {
           )}
         </div>
       </div>
+
+      {data.monthly_revenue.length > 1 && (() => {
+        const cumulative = data.monthly_revenue.reduce((acc, m) => {
+          const prev = acc[acc.length - 1] ?? { cumRevenue: 0, cumExpenses: 0 }
+          acc.push({ month: m.month, cumRevenue: prev.cumRevenue + (m.revenue || 0), cumExpenses: prev.cumExpenses + (m.expenses || 0) })
+          return acc
+        }, [])
+        return (
+          <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
+            <h2 className="text-sm font-semibold text-gray-200 mb-4">Cumulative Revenue Growth</h2>
+            <ResponsiveContainer width="100%" height={200}>
+              <AreaChart data={cumulative}>
+                <defs>
+                  <linearGradient id="cumRev" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#a855f7" stopOpacity={0.25} />
+                    <stop offset="95%" stopColor="#a855f7" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
+                <XAxis dataKey="month" stroke="#4b5563" tick={{ fontSize: 11, fill: '#6b7280' }} />
+                <YAxis stroke="#4b5563" tick={{ fontSize: 11, fill: '#6b7280' }} tickFormatter={v => `$${(v/1000).toFixed(0)}k`} />
+                <Tooltip {...tooltipStyle} formatter={v => [`$${Number(v).toFixed(2)}`]} />
+                <Legend wrapperStyle={{ fontSize: 12 }} />
+                <Area type="monotone" dataKey="cumRevenue" stroke="#a855f7" fill="url(#cumRev)" strokeWidth={2} name="Cumulative Revenue" dot={{ r: 3, fill: '#a855f7' }} />
+                <Area type="monotone" dataKey="cumExpenses" stroke="#ef4444" fill="none" strokeWidth={1.5} strokeDasharray="4 2" name="Cumulative Expenses" dot={false} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        )
+      })()}
 
       <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
         <h2 className="text-sm font-semibold text-gray-200 mb-4">Recent Transactions</h2>

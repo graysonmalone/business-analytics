@@ -77,6 +77,7 @@ func (h *InventoryHandler) Create(w http.ResponseWriter, r *http.Request) {
 	id, _ := result.LastInsertId()
 	p.ID = int(id)
 	p.UserID = userID
+	logAudit(h.DB, userID, "created", "product", "Added product: "+p.Name)
 	writeJSON(w, http.StatusCreated, p)
 }
 
@@ -134,6 +135,7 @@ func (h *InventoryHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 	p.ID = id
 	p.UserID = userID
+	logAudit(h.DB, userID, "updated", "product", "Updated product: "+p.Name)
 	writeJSON(w, http.StatusOK, p)
 }
 
@@ -155,5 +157,6 @@ func (h *InventoryHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "product not found")
 		return
 	}
+	logAudit(h.DB, userID, "deleted", "product", "Deleted product #"+strconv.Itoa(id))
 	writeJSON(w, http.StatusOK, map[string]string{"message": "deleted"})
 }

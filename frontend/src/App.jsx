@@ -11,6 +11,7 @@ import Finance from '@/pages/Finance'
 import Sales from '@/pages/Sales'
 import Goals from '@/pages/Goals'
 import Profile from '@/pages/Profile'
+import Audit from '@/pages/Audit'
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 30_000 } },
@@ -26,7 +27,7 @@ function AppLayout({ children }) {
   return (
     <div className="flex min-h-screen bg-gray-950">
       <NavBar />
-      <main className="flex-1 p-6 lg:p-8 overflow-auto min-w-0">
+      <main className="flex-1 p-6 lg:p-8 overflow-auto min-w-0 pt-20 lg:pt-6">
         {children}
       </main>
     </div>
@@ -45,6 +46,7 @@ function AppRoutes() {
       <Route path="/sales" element={<ProtectedRoute><AppLayout><Sales /></AppLayout></ProtectedRoute>} />
       <Route path="/goals" element={<ProtectedRoute><AppLayout><Goals /></AppLayout></ProtectedRoute>} />
       <Route path="/profile" element={<ProtectedRoute><AppLayout><Profile /></AppLayout></ProtectedRoute>} />
+      <Route path="/audit" element={<ProtectedRoute><AppLayout><Audit /></AppLayout></ProtectedRoute>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )

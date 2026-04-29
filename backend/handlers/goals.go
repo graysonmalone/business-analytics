@@ -83,6 +83,7 @@ func (h *GoalsHandler) Create(w http.ResponseWriter, r *http.Request) {
 	if g.TargetAmount > 0 {
 		g.Progress = (g.CurrentAmount / g.TargetAmount) * 100
 	}
+	logAudit(h.DB, userID, "created", "goal", "Added goal: "+g.Name)
 	writeJSON(w, http.StatusCreated, g)
 }
 
@@ -119,6 +120,7 @@ func (h *GoalsHandler) Update(w http.ResponseWriter, r *http.Request) {
 	if g.TargetAmount > 0 {
 		g.Progress = (g.CurrentAmount / g.TargetAmount) * 100
 	}
+	logAudit(h.DB, userID, "updated", "goal", "Updated goal: "+g.Name)
 	writeJSON(w, http.StatusOK, g)
 }
 
@@ -140,6 +142,7 @@ func (h *GoalsHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "goal not found")
 		return
 	}
+	logAudit(h.DB, userID, "deleted", "goal", "Deleted goal #"+strconv.Itoa(id))
 	writeJSON(w, http.StatusOK, map[string]string{"message": "deleted"})
 }
 

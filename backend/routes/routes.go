@@ -26,6 +26,7 @@ func Setup(db *sql.DB) http.Handler {
 	seed := &handlers.SeedHandler{DB: db}
 	goals := &handlers.GoalsHandler{DB: db}
 	insights := &handlers.InsightsHandler{DB: db}
+	audit := &handlers.AuditHandler{DB: db}
 
 	// Public
 	r.Post("/api/auth/register", auth.Register)
@@ -36,6 +37,7 @@ func Setup(db *sql.DB) http.Handler {
 		r.Use(middleware.Auth)
 
 		r.Get("/api/dashboard", dash.Get)
+			r.Get("/api/audit", audit.List)
 		r.Get("/api/profile", prof.Get)
 		r.Post("/api/seed", seed.Seed)
 		r.Post("/api/insights", insights.Generate)

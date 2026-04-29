@@ -103,6 +103,18 @@ func runMigrations(db *sql.DB) {
 			FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE SET NULL
 		)`,
 		`ALTER TABLE products ADD COLUMN cost_price DECIMAL(10,2) NOT NULL DEFAULT 0.00 AFTER unit_price`,
+		`ALTER TABLE sales ADD COLUMN customer_name VARCHAR(255) NOT NULL DEFAULT ''`,
+		`ALTER TABLE transactions ADD COLUMN is_recurring TINYINT(1) NOT NULL DEFAULT 0`,
+		`ALTER TABLE transactions ADD COLUMN recur_interval VARCHAR(20) NOT NULL DEFAULT ''`,
+		`CREATE TABLE IF NOT EXISTS audit_logs (
+			id INT AUTO_INCREMENT PRIMARY KEY,
+			user_id INT NOT NULL,
+			action VARCHAR(50) NOT NULL,
+			entity VARCHAR(50) NOT NULL,
+			description VARCHAR(500) NOT NULL DEFAULT '',
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+		)`,
 		`CREATE TABLE IF NOT EXISTS goals (
 			id INT AUTO_INCREMENT PRIMARY KEY,
 			user_id INT NOT NULL,

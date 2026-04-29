@@ -4,24 +4,37 @@ import { toast } from 'sonner'
 import { getSales, createSale, updateSale, deleteSale } from '@/api/sales'
 import { getInventory } from '@/api/inventory'
 import { exportCSV } from '@/lib/csv'
+import { useSort, usePagination } from '@/lib/sort'
+import SortTh from '@/components/SortTh'
+import TablePagination from '@/components/TablePagination'
 import { TableSkeleton, CardSkeleton, ChartSkeleton } from '@/components/Skeleton'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
-import { Plus, Pencil, Trash2, Download } from 'lucide-react'
+import { Plus, Pencil, Trash2, Download, Users } from 'lucide-react'
 import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis,
-  CartesianGrid, Tooltip, ResponsiveContainer, Legend,
+  CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts'
 
-const empty = { product_id: '', quantity_sold: '', unit_price: '', sale_date: new Date().toISOString().slice(0, 10) }
+const PAGE_SIZE = 25
+const empty = { product_id: '', quantity_sold: '', unit_price: '', sale_date: new Date().toISOString().slice(0, 10), customer_name: '' }
 const fmt = (n) => '$' + Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
 const tooltipStyle = {
   contentStyle: { backgroundColor: '#111827', border: '1px solid #1f2937', borderRadius: 8, fontSize: 12 },
   labelStyle: { color: '#9ca3af' },
+}
+
+const SORT_ACCESSORS = {
+  sale_date: s => s.sale_date,
+  product_name: s => (s.product_name || '').toLowerCase(),
+  customer_name: s => (s.customer_name || '').toLowerCase(),
+  quantity_sold: s => s.quantity_sold,
+  unit_price: s => s.unit_price,
+  total_amount: s => s.total_amount,
 }
 
 function buildProductChart(sales) {
@@ -45,15 +58,26 @@ function buildDailyChart(sales) {
   return Object.values(map).sort((a, b) => a.date.localeCompare(b.date)).slice(-30)
 }
 
+function buildTopCustomers(sales) {
+  const map = {}
+  sales.forEach(s => {
+    const name = s.customer_name || 'Walk-in / Unknown'
+    if (!map[name]) map[name] = { name, revenue: 0, count: 0 }
+    map[name].revenue += s.total_amount
+    map[name].count++
+  })
+  return Object.values(map).sort((a, b) => b.revenue - a.revenue).slice(0, 8)
+}
+
 export default function Sales() {
   const qc = useQueryClient()
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState(null)
   const [form, setForm] = useState(empty)
+  const { sort, toggle, apply } = useSort('sale_date', 'desc')
 
   const { data: sales = [], isLoading, isError } = useQuery({ queryKey: ['sales'], queryFn: getSales })
   const { data: products = [] } = useQuery({ queryKey: ['inventory'], queryFn: getInventory })
-
   const invalidate = () => qc.invalidateQueries({ queryKey: ['sales'] })
 
   const createMut = useMutation({
@@ -61,13 +85,11 @@ export default function Sales() {
     onSuccess: () => { invalidate(); setOpen(false); toast.success('Sale logged') },
     onError: () => toast.error('Failed to log sale'),
   })
-
   const updateMut = useMutation({
     mutationFn: ({ id, data }) => updateSale(id, data),
     onSuccess: () => { invalidate(); setOpen(false); toast.success('Sale updated') },
     onError: () => toast.error('Failed to update sale'),
   })
-
   const deleteMut = useMutation({
     mutationFn: deleteSale,
     onSuccess: () => { invalidate(); toast.success('Sale deleted') },
@@ -77,10 +99,9 @@ export default function Sales() {
   const openAdd = () => { setEditing(null); setForm(empty); setOpen(true) }
   const openEdit = (s) => {
     setEditing(s)
-    setForm({ product_id: s.product_id ?? '', quantity_sold: s.quantity_sold, unit_price: s.unit_price, sale_date: s.sale_date })
+    setForm({ product_id: s.product_id ?? '', quantity_sold: s.quantity_sold, unit_price: s.unit_price, sale_date: s.sale_date, customer_name: s.customer_name || '' })
     setOpen(true)
   }
-
   const handleSubmit = (e) => {
     e.preventDefault()
     const payload = {
@@ -88,6 +109,7 @@ export default function Sales() {
       quantity_sold: Number(form.quantity_sold),
       unit_price: Number(form.unit_price),
       sale_date: form.sale_date,
+      customer_name: form.customer_name,
     }
     editing ? updateMut.mutate({ id: editing.id, data: payload }) : createMut.mutate(payload)
   }
@@ -96,6 +118,11 @@ export default function Sales() {
   const totalUnits = sales.reduce((s, t) => s + t.quantity_sold, 0)
   const productChart = buildProductChart(sales)
   const dailyChart = buildDailyChart(sales)
+  const topCustomers = buildTopCustomers(sales)
+  const hasCustomers = sales.some(s => s.customer_name)
+
+  const sorted = apply(sales, SORT_ACCESSORS)
+  const { page, setPage, totalPages, paged, total } = usePagination(sorted, PAGE_SIZE)
   const isPending = createMut.isPending || updateMut.isPending
 
   return (
@@ -109,6 +136,7 @@ export default function Sales() {
           <Button onClick={() => exportCSV('sales.csv', sales, [
             { label: 'Date', value: r => r.sale_date },
             { label: 'Product', value: r => r.product_name },
+            { label: 'Customer', value: r => r.customer_name },
             { label: 'Quantity', value: r => r.quantity_sold },
             { label: 'Unit Price', value: r => r.unit_price },
             { label: 'Total', value: r => r.total_amount },
@@ -174,6 +202,30 @@ export default function Sales() {
         </div>
       </div>
 
+      {!isLoading && hasCustomers && topCustomers.length > 0 && (
+        <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
+          <h2 className="text-sm font-semibold text-gray-200 mb-4 flex items-center gap-2">
+            <Users size={14} className="text-purple-400" /> Top Customers by Revenue
+          </h2>
+          <div className="space-y-2.5">
+            {topCustomers.map((c, i) => {
+              const pct = (c.revenue / topCustomers[0].revenue) * 100
+              return (
+                <div key={c.name} className="flex items-center gap-3">
+                  <span className="text-xs text-gray-600 w-4 shrink-0">{i + 1}</span>
+                  <span className="text-sm text-gray-300 w-40 truncate shrink-0">{c.name}</span>
+                  <div className="flex-1 h-1.5 bg-gray-800 rounded-full overflow-hidden">
+                    <div className="h-full bg-purple-500 rounded-full" style={{ width: `${pct}%` }} />
+                  </div>
+                  <span className="text-sm text-gray-200 font-mono shrink-0 w-24 text-right">{fmt(c.revenue)}</span>
+                  <span className="text-xs text-gray-500 shrink-0 w-16 text-right">{c.count} sale{c.count !== 1 ? 's' : ''}</span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
       <div className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
         <div className="p-4 border-b border-gray-800">
           <h2 className="text-sm font-semibold text-gray-200">Sales History</h2>
@@ -185,43 +237,42 @@ export default function Sales() {
         ) : sales.length === 0 ? (
           <p className="p-8 text-gray-500 text-sm text-center">No sales yet. Log your first sale.</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-xs text-gray-400 uppercase tracking-wide border-b border-gray-800">
-                  <th className="text-left px-4 py-3 font-medium">Date</th>
-                  <th className="text-left px-4 py-3 font-medium">Product</th>
-                  <th className="text-right px-4 py-3 font-medium">Qty</th>
-                  <th className="text-right px-4 py-3 font-medium">Unit Price</th>
-                  <th className="text-right px-4 py-3 font-medium">Total</th>
-                  <th className="text-right px-4 py-3 font-medium">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-800">
-                {sales.map(s => (
-                  <tr key={s.id} className="hover:bg-gray-800/40 transition-colors">
-                    <td className="px-4 py-3 text-gray-400 font-mono text-xs">{s.sale_date}</td>
-                    <td className="px-4 py-3 text-gray-200">{s.product_name || '—'}</td>
-                    <td className="px-4 py-3 text-right text-gray-300 font-mono">{s.quantity_sold}</td>
-                    <td className="px-4 py-3 text-right text-gray-300 font-mono">{fmt(s.unit_price)}</td>
-                    <td className="px-4 py-3 text-right text-purple-400 font-mono font-semibold">{fmt(s.total_amount)}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center justify-end gap-1">
-                        <button onClick={() => openEdit(s)}
-                          className="p-1.5 text-gray-400 hover:text-purple-400 hover:bg-purple-400/10 rounded-lg transition-colors">
-                          <Pencil size={14} />
-                        </button>
-                        <button onClick={() => { if (confirm('Delete this sale?')) deleteMut.mutate(s.id) }}
-                          className="p-1.5 text-gray-400 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-colors">
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </td>
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-800">
+                    <SortTh label="Date" sortKey="sale_date" sort={sort} onSort={toggle} />
+                    <SortTh label="Product" sortKey="product_name" sort={sort} onSort={toggle} />
+                    <SortTh label="Customer" sortKey="customer_name" sort={sort} onSort={toggle} />
+                    <SortTh label="Qty" sortKey="quantity_sold" sort={sort} onSort={toggle} align="right" />
+                    <SortTh label="Unit Price" sortKey="unit_price" sort={sort} onSort={toggle} align="right" />
+                    <SortTh label="Total" sortKey="total_amount" sort={sort} onSort={toggle} align="right" />
+                    <th className="px-4 py-3 text-right text-xs text-gray-400 uppercase tracking-wide font-medium">Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-gray-800">
+                  {paged.map(s => (
+                    <tr key={s.id} className="hover:bg-gray-800/40 transition-colors">
+                      <td className="px-4 py-3 text-gray-400 font-mono text-xs">{s.sale_date}</td>
+                      <td className="px-4 py-3 text-gray-200">{s.product_name || '—'}</td>
+                      <td className="px-4 py-3 text-gray-400">{s.customer_name || '—'}</td>
+                      <td className="px-4 py-3 text-right text-gray-300 font-mono">{s.quantity_sold}</td>
+                      <td className="px-4 py-3 text-right text-gray-300 font-mono">{fmt(s.unit_price)}</td>
+                      <td className="px-4 py-3 text-right text-purple-400 font-mono font-semibold">{fmt(s.total_amount)}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center justify-end gap-1">
+                          <button onClick={() => openEdit(s)} className="p-1.5 text-gray-400 hover:text-purple-400 hover:bg-purple-400/10 rounded-lg transition-colors"><Pencil size={14} /></button>
+                          <button onClick={() => { if (confirm('Delete this sale?')) deleteMut.mutate(s.id) }} className="p-1.5 text-gray-400 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-colors"><Trash2 size={14} /></button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <TablePagination page={page} totalPages={totalPages} onChange={setPage} total={total} pageSize={PAGE_SIZE} />
+          </>
         )}
       </div>
 
@@ -241,11 +292,15 @@ export default function Sales() {
                   <SelectValue placeholder="Select a product" />
                 </SelectTrigger>
                 <SelectContent className="bg-gray-800 border-gray-700">
-                  {products.map(p => (
-                    <SelectItem key={p.id} value={String(p.id)} className="text-gray-100">{p.name}</SelectItem>
-                  ))}
+                  {products.map(p => <SelectItem key={p.id} value={String(p.id)} className="text-gray-100">{p.name}</SelectItem>)}
                 </SelectContent>
               </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="s-customer" className="text-gray-300 text-sm">Customer Name</Label>
+              <Input id="s-customer" value={form.customer_name}
+                onChange={e => setForm(f => ({ ...f, customer_name: e.target.value }))}
+                className="bg-gray-800 border-gray-700 text-gray-100" placeholder="Optional" />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
@@ -268,13 +323,10 @@ export default function Sales() {
                 className="bg-gray-800 border-gray-700 text-gray-100" required />
             </div>
             {form.quantity_sold && form.unit_price && (
-              <p className="text-sm text-gray-400">
-                Total: <span className="text-purple-400 font-semibold">{fmt(Number(form.quantity_sold) * Number(form.unit_price))}</span>
-              </p>
+              <p className="text-sm text-gray-400">Total: <span className="text-purple-400 font-semibold">{fmt(Number(form.quantity_sold) * Number(form.unit_price))}</span></p>
             )}
             <DialogFooter className="gap-2 pt-2">
-              <Button type="button" variant="outline" onClick={() => setOpen(false)}
-                className="border-gray-700 text-gray-300 hover:bg-gray-800">Cancel</Button>
+              <Button type="button" variant="outline" onClick={() => setOpen(false)} className="border-gray-700 text-gray-300 hover:bg-gray-800">Cancel</Button>
               <Button type="submit" disabled={isPending} className="bg-purple-600 hover:bg-purple-700 text-white">
                 {isPending ? 'Saving…' : editing ? 'Save changes' : 'Log sale'}
               </Button>

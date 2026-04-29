@@ -3,6 +3,7 @@ package handlers
 import (
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -15,14 +16,15 @@ type SalesHandler struct {
 }
 
 type Sale struct {
-	ID           int       `json:"id"`
-	UserID       int       `json:"user_id"`
-	ProductID    *int      `json:"product_id"`
-	ProductName  string    `json:"product_name,omitempty"`
-	QuantitySold int       `json:"quantity_sold"`
-	UnitPrice    float64   `json:"unit_price"`
-	TotalAmount  float64   `json:"total_amount"`
-	SaleDate     string    `json:"sale_date"`
+	ID           int     `json:"id"`
+	UserID       int     `json:"user_id"`
+	ProductID    *int    `json:"product_id"`
+	ProductName  string  `json:"product_name,omitempty"`
+	CustomerName string  `json:"customer_name"`
+	QuantitySold int     `json:"quantity_sold"`
+	UnitPrice    float64 `json:"unit_price"`
+	TotalAmount  float64 `json:"total_amount"`
+	SaleDate     string  `json:"sale_date"`
 	CreatedAt    time.Time `json:"created_at"`
 }
 
@@ -31,6 +33,7 @@ func (h *SalesHandler) List(w http.ResponseWriter, r *http.Request) {
 
 	q := r.URL.Query()
 	query := `SELECT s.id, s.user_id, s.product_id, COALESCE(p.name, ''),
+		COALESCE(s.customer_name, ''),
 		s.quantity_sold, s.unit_price, s.total_amount,
 		DATE_FORMAT(s.sale_date, '%Y-%m-%d'), s.created_at
 		FROM sales s LEFT JOIN products p ON s.product_id = p.id
@@ -59,7 +62,8 @@ func (h *SalesHandler) List(w http.ResponseWriter, r *http.Request) {
 		var s Sale
 		var productID sql.NullInt64
 		if err := rows.Scan(&s.ID, &s.UserID, &productID, &s.ProductName,
-			&s.QuantitySold, &s.UnitPrice, &s.TotalAmount, &s.SaleDate, &s.CreatedAt); err != nil {
+			&s.CustomerName, &s.QuantitySold, &s.UnitPrice, &s.TotalAmount,
+			&s.SaleDate, &s.CreatedAt); err != nil {
 			continue
 		}
 		if productID.Valid {
@@ -92,8 +96,8 @@ func (h *SalesHandler) Create(w http.ResponseWriter, r *http.Request) {
 	s.TotalAmount = float64(s.QuantitySold) * s.UnitPrice
 
 	result, err := h.DB.Exec(
-		"INSERT INTO sales (user_id, product_id, quantity_sold, unit_price, total_amount, sale_date) VALUES (?, ?, ?, ?, ?, ?)",
-		userID, s.ProductID, s.QuantitySold, s.UnitPrice, s.TotalAmount, s.SaleDate,
+		"INSERT INTO sales (user_id, product_id, customer_name, quantity_sold, unit_price, total_amount, sale_date) VALUES (?, ?, ?, ?, ?, ?, ?)",
+		userID, s.ProductID, s.CustomerName, s.QuantitySold, s.UnitPrice, s.TotalAmount, s.SaleDate,
 	)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not create sale")
@@ -102,6 +106,11 @@ func (h *SalesHandler) Create(w http.ResponseWriter, r *http.Request) {
 	id, _ := result.LastInsertId()
 	s.ID = int(id)
 	s.UserID = userID
+	desc := fmt.Sprintf("Logged sale of %d unit(s) for $%.2f", s.QuantitySold, s.TotalAmount)
+	if s.CustomerName != "" {
+		desc += " to " + s.CustomerName
+	}
+	logAudit(h.DB, userID, "created", "sale", desc)
 	writeJSON(w, http.StatusCreated, s)
 }
 
@@ -117,11 +126,12 @@ func (h *SalesHandler) Get(w http.ResponseWriter, r *http.Request) {
 	var productID sql.NullInt64
 	err = h.DB.QueryRow(`
 		SELECT s.id, s.user_id, s.product_id, COALESCE(p.name, ''),
+		COALESCE(s.customer_name, ''),
 		s.quantity_sold, s.unit_price, s.total_amount,
 		DATE_FORMAT(s.sale_date, '%Y-%m-%d'), s.created_at
 		FROM sales s LEFT JOIN products p ON s.product_id = p.id
 		WHERE s.id=? AND s.user_id=?`, id, userID,
-	).Scan(&s.ID, &s.UserID, &productID, &s.ProductName,
+	).Scan(&s.ID, &s.UserID, &productID, &s.ProductName, &s.CustomerName,
 		&s.QuantitySold, &s.UnitPrice, &s.TotalAmount, &s.SaleDate, &s.CreatedAt)
 	if err == sql.ErrNoRows {
 		writeError(w, http.StatusNotFound, "sale not found")
@@ -154,8 +164,8 @@ func (h *SalesHandler) Update(w http.ResponseWriter, r *http.Request) {
 	s.TotalAmount = float64(s.QuantitySold) * s.UnitPrice
 
 	result, err := h.DB.Exec(
-		"UPDATE sales SET product_id=?, quantity_sold=?, unit_price=?, total_amount=?, sale_date=? WHERE id=? AND user_id=?",
-		s.ProductID, s.QuantitySold, s.UnitPrice, s.TotalAmount, s.SaleDate, id, userID,
+		"UPDATE sales SET product_id=?, customer_name=?, quantity_sold=?, unit_price=?, total_amount=?, sale_date=? WHERE id=? AND user_id=?",
+		s.ProductID, s.CustomerName, s.QuantitySold, s.UnitPrice, s.TotalAmount, s.SaleDate, id, userID,
 	)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "could not update sale")
@@ -168,6 +178,7 @@ func (h *SalesHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 	s.ID = id
 	s.UserID = userID
+	logAudit(h.DB, userID, "updated", "sale", fmt.Sprintf("Updated sale #%d", id))
 	writeJSON(w, http.StatusOK, s)
 }
 
@@ -189,5 +200,6 @@ func (h *SalesHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "sale not found")
 		return
 	}
+	logAudit(h.DB, userID, "deleted", "sale", fmt.Sprintf("Deleted sale #%d", id))
 	writeJSON(w, http.StatusOK, map[string]string{"message": "deleted"})
 }
